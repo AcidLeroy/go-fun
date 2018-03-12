@@ -5,34 +5,48 @@ import (
 	"fmt" 
 ) 
 
-type MinHeap struct {
+type compareFunc func(int, int) bool
+
+type Heap struct {
 	arr []int
+	compare compareFunc // > min heap, < max heap
 } 
 
-func NewMinHeap(i []int) (*MinHeap){
-	m := new(MinHeap)
-	m.arr = i
+func NewHeap(i []int, f compareFunc) (*Heap){
+	m := new(Heap)
+	m.compare = f
+	// Insert all values of the heap
+	for _, val := range(i) {
+		m.Insert(val)
+	}
 	return m
 }
 
-func (h *MinHeap) Parent(i int) int {
-	return i/2
+func (h *Heap) Parent(i int) int {
+	return (i-1)/2
 } 
 
-func (h *MinHeap) Left(i int) int {
+func (h *Heap) Left(i int) int {
 	return 2*i + 1
 } 
 
-func (h *MinHeap) Right(i int) int {
+func (h *Heap) Right(i int) int {
 	return 2*i+2 
 } 
 
-func (h *MinHeap) Insert(val int ) {
+func (h *Heap) Size() int {
+	return len(h.arr)
+} 
+
+func (h *Heap) Root() int {
+	return h.arr[0]
+} 
+
+
+func (h *Heap) Insert(val int ) {
 	h.arr = append(h.arr,val)
 	i := len(h.arr)-1
-	fmt.Println("hparent = ", h.arr[h.Parent(i)])
-	fmt.Println("harr = ", h.arr[i])
-	for (i != 0 &&  h.arr[h.Parent(i)] > h.arr[i]) {
+	for (i != 0 &&  h.compare(h.arr[h.Parent(i)], h.arr[i])) {
 		fmt.Println("i = ", i) 
 		h.arr[i], h.arr[h.Parent(i)] = h.arr[h.Parent(i)], h.arr[i]
 		i = h.Parent(i)
@@ -42,7 +56,8 @@ func (h *MinHeap) Insert(val int ) {
 
 func TestInsert(t *testing.T) {
 	testArr := []int{1,3,5,6,10,18} 
-	heap := NewMinHeap(testArr)
+	f := func(x, y int) bool { return x > y } 
+	heap := NewHeap(testArr, f)
 	for i, _ := range(heap.arr) {
 		fmt.Println("i = ", i) 
 	} 
@@ -67,10 +82,111 @@ func TestInsert(t *testing.T) {
 	fmt.Println("length = ", len(heap.arr) ) 
 	expectedArr := []int{1,2, 3,5,6,10,18}
 	fmt.Println("length of expected = ", len(expectedArr) ) 
-	for index, val := range(expectedArr) {
-		fmt.Println("index = ", index)
-		if val != heap.arr[index] {
-			t.Errorf("Expected %d but got %d instead", val, heap.arr[index])
-		} 
+	for i, val := range(heap.arr) {
+
+		fmt.Printf("Index = %d, val = %d, Parent: %d, Left: %d, Right: %d\n", i, val, heap.Parent(i), heap.Left(i), heap.Right(i))
+	}
+} 
+
+type RunningMedian struct {
+	l, r *Heap
+} 
+
+func  NewRunningMedian() *RunningMedian{
+	m := new(RunningMedian)
+	min := func(x, y int) bool { return x > y } 
+	max := func(x, y int) bool { return x <= y } 
+	// Left side is the max heap
+	m.l = NewHeap([]int{}, max)
+	m.r = NewHeap([]int{}, min)
+	return m
+}
+
+func Odd(i int) bool {
+	return (i % 2) != 0
+}
+
+func TestOdd(t *testing.T) { 
+	if Odd(2) {
+		t.Errorf("2 is not odd!") 
+	} 
+	if !Odd(1) {
+		t.Errorf("1 is ODD!") 
 	} 
 } 
+
+func (m *RunningMedian) GetMedian() (float64){
+	lSize := m.l.Size()
+	rSize := m.r.Size()
+	fmt.Printf("lSize = %d, rSize = %d\n", lSize, rSize)
+	if lSize == 1 && rSize == 0 {
+		return float64(m.l.Root()) 
+	} else if (Odd(lSize) == Odd(rSize))  {  // both even or both odd
+		return float64(m.l.Root() + m.r.Root()) / 2.0
+	} else { // Return the Odd one
+		if !Odd(lSize) {
+			return float64(m.l.Root())
+		} else {
+			return float64(m.r.Root())
+		}
+	}
+	return 0.0
+}
+
+func (m *RunningMedian) AddNewValue(i int) {
+	fmt.Println("Inserting i = ", i)
+	if m.l.Size() > 0 {
+		fmt.Println("Root of left = ", m.l.Root()) 
+	} 
+
+	if m.r.Size() > 0 {
+		fmt.Println("Root of right = ", m.r.Root())
+	} 
+	if m.l.Size() == 0 {
+		m.l.Insert(i)
+	} else if m.r.Size() == 0 {
+		m.r.Insert(i)
+	} else if i > m.l.Root() {
+		fmt.Println("Inserting right: i > m.l.root() = ", m.l.Root())
+		m.r.Insert(i)
+	} else {
+		fmt.Println("Inserting left: i <= m.l.root() = ", m.l.Root())
+		m.l.Insert(i)
+	} 
+} 
+
+
+func TestRunningMean(t *testing.T) {
+	m := NewRunningMedian()
+
+	m.AddNewValue(3)
+	expected := 3.0
+	if expected != m.GetMedian() {
+		t.Errorf("Expected %f as the median, but instead got %f", expected, m.GetMedian())
+	}
+	m.AddNewValue(4) 
+	expected = (3.0 + 4.0)/2.0
+	if  expected != m.GetMedian() {
+		t.Errorf("Expected %f as the new median, but instead got %f", expected, m.GetMedian())
+	}
+
+
+	m.AddNewValue(7) 
+	expected =  4.0
+	if expected != m.GetMedian() {
+		t.Errorf("Expected %f as the median, but instead got %f", expected, m.GetMedian())
+	}
+
+	m.AddNewValue(1.0)
+	expected =  (3.0 + 4.0)/ 2.0
+	if expected != m.GetMedian() {
+		t.Errorf("Expected %f as the median, but instead got %f", expected, m.GetMedian())
+	}
+
+	m.AddNewValue(10)
+	expected =  4.0
+	if expected != m.GetMedian() {
+		t.Errorf("Expected %f as the median, but instead got %f", expected, m.GetMedian())
+	}
+}
+
